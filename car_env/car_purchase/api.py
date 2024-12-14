@@ -28,6 +28,7 @@ jwt = JWTManager(app)
 #error handler
 @app.errorhandler(Exception)
 def handle_exception(e):
+    print(f"Unexpected error: {str(e)}")
     return make_response(jsonify({"message": "An unexpected error occurred."}), 500)
 
 
@@ -97,7 +98,7 @@ def check_connection():
     except Exception as e:
         print(f"Error connecting to database: {e}")
 
-check_connection()
+
 #-----UTILITY FUNCTIONS----------
 
 def fetch_all(query, params=()):
@@ -141,9 +142,25 @@ def get_clients():
     return jsonify(clients)
 
 #add new client
-@app.route('/add_client', methods=["post"])
+@app.route('/client/add', methods=["GET","POST"])
 def add_client():
+    if request.method == 'GET':
+        # Return a helpful message or render a form
+        return jsonify({
+            "message": "Send a POST request to add a client",
+            "required_fields": {
+                "fname": "First Name (required)",
+                "lname": "Last Name (required)", 
+                "address": "Address (required)",
+                "details": "Optional additional details"
+            }
+        }), 200
+
+    if not request.is_json:
+        return make_response(jsonify({"message": "Request must be JSON"}), 415)
+    
     data = request.json #to avoid redundancy in calling mysql
+
     fname = data.get("fname")
     lname = data.get("lname")
     address = data.get("address")
@@ -154,14 +171,17 @@ def add_client():
     
     try:
         execute_query(
-            "INSERT INTO client (firstname, lastname, address, other_details) VALUES (%s, %s, %s, %s)",
+            """INSERT INTO client (firstname, lastname, address, other_details) 
+            VALUES (%s, %s, %s, %s)""",
             (fname, lname, address, other_details)
         )
+        print("row(s) affected:")
         return jsonify({"message": "Client added successfully"}), 201
     except Exception as e:
+        print(f"Error adding client: {str(e)}")
         return jsonify({"message": "Error occurred while adding client"}), 500
 
-@app.route('/edit_client/<int:id>', methods=["PUT"])
+@app.route('/client/edit/<id>', methods=["PUT"])
 def edit_client(id):
     data = request.json
     fname = data.get("fname", None)
@@ -184,13 +204,15 @@ def edit_client(id):
     return jsonify({"message": "Client updated successfully"}), 200
 
 
-@app.route('/delete_client/<int:id>', methods=["DELETE"])
+@app.route('/client/delete/<id>', methods=["DELETE"])
 def delete_client(id):
     execute_query("DELETE FROM client WHERE client_id = %s", (id,))
     return jsonify({"message": "Client deleted successfully"}), 200
 
+
+
 # CRUD ITEMS
-@app.route('/items', methods=['GET'])
+@app.route('/item', methods=['GET'])
 def get_items():
     rows = fetch_all("SELECT * FROM item_status")
     items = [
@@ -206,32 +228,40 @@ def get_items():
 
 
 # Add a new item
-@app.route('/item', methods=["POST"])
+@app.route('/item/add', methods=["POST"])
 def add_item():
     data = request.json
-    item_code = data.get("item_code", None)
-    item_name = data.get("item_name", None)
-    quantity_available = data.get("quantity_available", None)
+    item_name = data.get("item_name")
+    quantity_available = data.get("quantity_available")
     other_details = data.get("other_details", None)
 
-    if not item_code or not item_name or not quantity_available:
+    missing_fields = []
+    if not quantity_available:
+        missing_fields.append("quantity_available")
+    if not item_name:
+        missing_fields.append("item_name")
+    
+    if missing_fields:
+        print(f"Error: Missing required fields: {', '.join(missing_fields)}")
         return jsonify({"message": "Required fields not filled"}), 400
 
-    cursor = mysql.connection.cursor()
-    cursor.execute(
-        """
-        INSERT INTO item_status (item_code, item_name, _quantity_available, other_details)
-        VALUES (%s, %s, %s, %s)
+    try:
+        execute_query(
+            """
+        INSERT INTO item_status (item_name, item_quantity_available, other_item_details)
+            VALUES (%s, %s, %s)
         """,
-        (item_code, item_name, quantity_available, other_details),
-    )
-    mysql.connection.commit()
-    cursor.close()
-    return jsonify({"message": "Item added successfully"}), 201
+            ( item_name, quantity_available, other_details),
+        )
+        print("row(s) affected:")
+        return jsonify({"message": "Client added successfully"}), 201
+    except Exception as e:
+        print(f"Error adding client: {str(e)}")
+        return jsonify({"message": "Error occurred while adding client"}), 500
 
 
 # Edit an item
-@app.route('/edit_item/<string:item_code>', methods=["PUT"])
+@app.route('/item/edit/<item_code>', methods=["PUT"])
 def edit_item(item_code):
     data = request.json
     item_name = data.get("item_name", None)
@@ -245,7 +275,7 @@ def edit_item(item_code):
     cursor.execute(
         """
         UPDATE item_status
-        SET item_name = %s, _quantity_available = %s, other_details = %s
+        SET item_name = %s, item_quantity_available = %s, other_item_details = %s
         WHERE item_code = %s
         """,
         (item_name, quantity_available, other_details, item_code),
@@ -256,7 +286,7 @@ def edit_item(item_code):
 
 
 # Delete an item
-@app.route('/delete_item/<string:item_code>', methods=["DELETE"])
+@app.route('/item/delete/<item_code>', methods=["DELETE"])
 def delete_item(item_code):
     execute_query("DELETE FROM item_status WHERE item_code = %s", (item_code,))
     return jsonify({"message": "Item deleted successfully"}), 200
@@ -268,7 +298,7 @@ def delete_item(item_code):
 @app.route('/stafflist', methods=['GET'])
 def get_staff():
     try:
-        rows = fetch_all("SELECT * FROM staff_memberss")
+        rows = fetch_all("SELECT * FROM staff_member")
         staff = [
             {
                 "Staff Code": row[0],
@@ -338,19 +368,11 @@ def delete_staff(staff_code):
 # CRUD for PURCHASE TABLE
 
 # Get all purchases
-@app.route('/purchases', methods=['GET'])
+@app.route('/purchase', methods=['GET'])
 def get_purchases():
     rows = fetch_all(
         """
-        SELECT 
-            purchase_id, 
-            date_of_purchase, 
-            purchase_quantity, 
-            staff_member_staff_code, 
-            Client_client_id, 
-            item_status_item_code, 
-            other_details 
-        FROM purchase
+        SELECT * FROM purchase
         """
     )
     purchases = [
@@ -369,7 +391,7 @@ def get_purchases():
 
 
 # Add a new purchase
-@app.route('/purchase', methods=["POST"])
+@app.route('/add_purchase', methods=["POST"])
 def add_purchase():
     data = request.json
     date_of_purchase = data.get("date_of_purchase", None)
@@ -431,4 +453,6 @@ def delete_purchase(purchase_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    with app.app_context():
+        check_connection()
+        app.run(debug=True)
