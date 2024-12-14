@@ -11,6 +11,7 @@ from flask_jwt_extended.exceptions import (
     UserLookupError,
     UserClaimsVerificationError
 )
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -138,7 +139,7 @@ def home():
 @app.route('/clients', methods=['GET'])
 def get_clients():
     rows = fetch_all("SELECT * FROM client")
-    clients = [{"Client ID": row[0], "Firstname": row[1], "Lastname": row[2], "Address": row[3], "Other Details": row[4]} for row in rows]
+    clients = [{"Client ID": row[0], "firstname": row[1], "lastname": row[2], "Address": row[3], "other_details": row[4]} for row in rows]
     return jsonify(clients)
 
 #add new client
@@ -149,8 +150,8 @@ def add_client():
         return jsonify({
             "message": "Send a POST request to add a client",
             "required_fields": {
-                "fname": "First Name (required)",
-                "lname": "Last Name (required)", 
+                "firstname": "First Name (required)",
+                "lastname": "Last Name (required)", 
                 "address": "Address (required)",
                 "details": "Optional additional details"
             }
@@ -161,19 +162,19 @@ def add_client():
     
     data = request.json #to avoid redundancy in calling mysql
 
-    fname = data.get("fname")
-    lname = data.get("lname")
+    firstname = data.get("firstname")
+    lastname = data.get("lastname")
     address = data.get("address")
     other_details = data.get("details")
 
-    if not fname or not lname or not address:
+    if not firstname or not lastname or not address:
         return make_response(jsonify({"message":"Required fields not filled"}), 400)
     
     try:
         execute_query(
             """INSERT INTO client (firstname, lastname, address, other_details) 
             VALUES (%s, %s, %s, %s)""",
-            (fname, lname, address, other_details)
+            (firstname, lastname, address, other_details)
         )
         print("row(s) affected:")
         return jsonify({"message": "Client added successfully"}), 201
@@ -184,12 +185,12 @@ def add_client():
 @app.route('/client/edit/<id>', methods=["PUT"])
 def edit_client(id):
     data = request.json
-    fname = data.get("fname", None)
-    lname = data.get("lname", None)
+    firstname = data.get("firstname", None)
+    lastname = data.get("lastname", None)
     address = data.get("address", None)
     other_details = data.get("details", None)
 
-    if not fname or not lname or not address:
+    if not firstname or not lastname or not address:
         return jsonify({"message": "Required fields not filled"}), 400
 
     execute_query(
@@ -198,7 +199,7 @@ def edit_client(id):
         SET firstname = %s, lastname = %s, address = %s, other_details = %s
         WHERE client_id = %s
         """,
-        (fname, lname, address, other_details, id)
+        (firstname, lastname, address, other_details, id)
     )
 
     return jsonify({"message": "Client updated successfully"}), 200
@@ -218,9 +219,9 @@ def get_items():
     items = [
         {
             "Item Code": row[0],
-            "Item Name": row[1],
-            "Quantity Available": row[2],
-            "Other Details": row[3],
+            "tiem_name": row[1],
+            "quantity_available": row[2],
+            "other_details": row[3],
         }
         for row in rows
     ]
@@ -251,7 +252,7 @@ def add_item():
         INSERT INTO item_status (item_name, item_quantity_available, other_item_details)
             VALUES (%s, %s, %s)
         """,
-            ( item_name, quantity_available, other_details),
+            (item_name, quantity_available, other_details),
         )
         print("row(s) affected:")
         return jsonify({"message": "Client added successfully"}), 201
@@ -295,16 +296,16 @@ def delete_item(item_code):
 
 #------STAFF CRUD ---------------
 # Get all staff members
-@app.route('/stafflist', methods=['GET'])
+@app.route('/staff', methods=['GET'])
 def get_staff():
     try:
         rows = fetch_all("SELECT * FROM staff_member")
         staff = [
             {
                 "Staff Code": row[0],
-                "First Name": row[1],
-                "Last Name": row[2],
-                "Other Details": row[3],
+                "first_name": row[1],
+                "last_name": row[2],
+                "other_details": row[3],
             }
             for row in rows
         ]
@@ -313,29 +314,29 @@ def get_staff():
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
 # Add a new staff member
-@app.route('/staff', methods=["POST"])
+@app.route('/staff/add', methods=["POST"])
 def add_staff():
     data = request.json
-    staff_code = data.get("staff_code", None)
+
     first_name = data.get("first_name", None)
     last_name = data.get("last_name", None)
     other_details = data.get("other_details", None)
 
-    if not staff_code or not first_name or not last_name:
+    if not first_name or not last_name:
         return jsonify({"message": "Required fields not filled"}), 400
 
     execute_query(
         """
-        INSERT INTO staff_members (staffcode, firstname, lastname, other_details)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO staff_member (firstname, lastname, other_details)
+        VALUES (%s, %s, %s)
         """,
-        (staff_code, first_name, last_name, other_details)
+        (first_name, last_name, other_details)
     )
     return jsonify({"message": "Staff member added successfully"}), 201
 
 
 # Edit a staff member
-@app.route('/edit_staff/<string:staff_code>', methods=["PUT"])
+@app.route('/staff/edit/<staff_code>', methods=["PUT"])
 def edit_staff(staff_code):
     data = request.json
     first_name = data.get("first_name", None)
@@ -347,9 +348,9 @@ def edit_staff(staff_code):
 
     execute_query(
         """
-        UPDATE staff_members
+        UPDATE staff_member
         SET firstname = %s, lastname = %s, other_details = %s
-        WHERE staffcode = %s
+        WHERE staff_code = %s
         """,
         (first_name, last_name, other_details, staff_code)
     )
@@ -357,10 +358,10 @@ def edit_staff(staff_code):
 
 
 # Delete a staff member
-@app.route('/delete_staff/<string:staff_code>', methods=["DELETE"])
+@app.route('/staff/delete/<staff_code>', methods=["DELETE"])
 def delete_staff(staff_code):
     cursor = mysql.connection.cursor()
-    cursor.execute("DELETE FROM staff_members WHERE staffcode = %s", (staff_code,))
+    cursor.execute("DELETE FROM staff_member WHERE staff_code = %s", (staff_code,))
     mysql.connection.commit()
     cursor.close()
     return jsonify({"message": "Staff member deleted successfully"}), 200
@@ -378,12 +379,12 @@ def get_purchases():
     purchases = [
         {
             "Purchase ID": row[0],
-            "Date of Purchase": row[1],
-            "Purchase Quantity": row[2],
-            "Staff Code": row[3],
-            "Client ID": row[4],
-            "Item Code": row[5],
-            "Other Details": row[6],
+            "date_of_purchase": row[1],
+            "purchase_quantity": row[2],
+            "staff_code": row[3],
+            "client_id": row[4],
+            "item_code": row[5],
+            "other_details": row[6],
         }
         for row in rows
     ]
@@ -391,49 +392,81 @@ def get_purchases():
 
 
 # Add a new purchase
-@app.route('/add_purchase', methods=["POST"])
+@app.route('/purchase/add', methods=["POST"])
 def add_purchase():
     data = request.json
     date_of_purchase = data.get("date_of_purchase", None)
     purchase_quantity = data.get("purchase_quantity", None)
-    staff_code = data.get("staff_member_staff_code", None)
-    client_id = data.get("Client_client_id", None)
-    item_code = data.get("item_status_item_code", None)
+    staff_code = data.get("staff_code", None)
+    client_id = data.get("client_id", None)
+    item_code = data.get("item_code", None)
     other_details = data.get("other_details", None)
 
-    if not date_of_purchase or not purchase_quantity or not staff_code or not client_id or not item_code:
+    missing_fields = []
+    if not date_of_purchase:
+        missing_fields.append("date_of_purchase")
+    if not purchase_quantity:
+        missing_fields.append("purchase_quantity")
+    if not staff_code:
+        missing_fields.append("staff_code")
+    if not client_id:
+        missing_fields.append("client_id")
+    if not item_code:
+        missing_fields.append("item_code")
+    
+    if missing_fields:
+        print(f"Error: Missing required fields: {', '.join(missing_fields)}")
         return jsonify({"message": "Required fields not filled"}), 400
+    ##for the date parsing 
+    try:
+        date_of_purchase = datetime.strptime(date_of_purchase, "%a, %d %b %Y %H:%M:%S GMT").strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError as ve:
+        print(f"Date Parsing Error: {str(ve)}")
+        return jsonify({"message": "Invalid date format. Expected 'Fri, 30 Aug 2024 00:00:00 GMT'"}), 400
 
-    execute_query(
-        """
-        INSERT INTO purchase (date_of_purchase, purchase_quantity, staff_member_staff_code, Client_client_id, item_status_item_code, other_details)
-        VALUES (%s, %s, %s, %s, %s, %s)
+    
+    try:
+        execute_query(
+            """
+            INSERT INTO purchase (date_of_purchase, purchase_quatity, staff_member_staff_code, Client_client_id, item_status_item_code, other_details)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (date_of_purchase, purchase_quantity, staff_code, client_id, item_code, other_details)
-    )
-    return jsonify({"message": "Purchase record added successfully"}), 201
-
+            (date_of_purchase, purchase_quantity, staff_code, client_id, item_code, other_details)
+        )
+        return jsonify({"message": "Purchase record added successfully"}), 201
+    
+    except Exception as e:
+        print(f"Database Error: {str(e)}")
+        return jsonify({"message": "Error occurred while adding purchase record"}), 500
 
 # Edit a purchase record
-@app.route('/edit_purchase/<int:purchase_id>', methods=["PUT"])
+@app.route('/purchase/edit/<purchase_id>', methods=["PUT"])
 def edit_purchase(purchase_id):
     data = request.json
     date_of_purchase = data.get("date_of_purchase", None)
     purchase_quantity = data.get("purchase_quantity", None)
-    staff_code = data.get("staff_member_staff_code", None)
-    client_id = data.get("Client_client_id", None)
-    item_code = data.get("item_status_item_code", None)
+    staff_code = data.get("staff_code", None)
+    client_id = data.get("client_id", None)
+    item_code = data.get("item_code", None)
     other_details = data.get("other_details", None)
 
     if not date_of_purchase or not purchase_quantity or not staff_code or not client_id or not item_code:
         return jsonify({"message": "Required fields not filled"}), 400
 
-    execute_query(
+    try:
+        date_of_purchase = datetime.strptime(date_of_purchase, "%a, %d %b %Y %H:%M:%S GMT").strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError as ve:
+        print(f"Date Parsing Error: {str(ve)}")
+        return jsonify({"message": "Invalid date format. Expected 'Fri, 30 Aug 2024 00:00:00 GMT'"}), 400
+
+    
+    try:
+        execute_query(
         """
         UPDATE purchase
         SET 
             date_of_purchase = %s, 
-            purchase_quantity = %s, 
+            purchase_quatity = %s, 
             staff_member_staff_code = %s, 
             Client_client_id = %s, 
             item_status_item_code = %s, 
@@ -442,11 +475,15 @@ def edit_purchase(purchase_id):
         """,
         (date_of_purchase, purchase_quantity, staff_code, client_id, item_code, other_details, purchase_id)
     )
-    return jsonify({"message": "Purchase record updated successfully"}), 200
+        return jsonify({"message": "Purchase record updated successfully"}), 200
+
+    except Exception as e:
+        print(f"Database Error: {str(e)}")
+        return jsonify({"message": "Error occurred while adding purchase record"}), 500
 
 
 # Delete a purchase record
-@app.route('/delete_purchase/<int:purchase_id>', methods=["DELETE"])
+@app.route('/purchase/delete/<purchase_id>', methods=["DELETE"])
 def delete_purchase(purchase_id):
     execute_query("DELETE FROM purchase WHERE purchase_id = %s", (purchase_id,))
     return jsonify({"message": "Purchase record deleted successfully"}), 200
