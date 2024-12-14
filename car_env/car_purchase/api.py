@@ -138,7 +138,7 @@ def home():
 @app.route('/clients', methods=['GET'])
 def get_clients():
     rows = fetch_all("SELECT * FROM client")
-    clients = [{"Client ID": row[0], "Firstname": row[1], "Lastname": row[2], "Address": row[3], "Other Details": row[4]} for row in rows]
+    clients = [{"Client ID": row[0], "firstname": row[1], "lastname": row[2], "Address": row[3], "other_details": row[4]} for row in rows]
     return jsonify(clients)
 
 #add new client
@@ -149,8 +149,8 @@ def add_client():
         return jsonify({
             "message": "Send a POST request to add a client",
             "required_fields": {
-                "fname": "First Name (required)",
-                "lname": "Last Name (required)", 
+                "firstname": "First Name (required)",
+                "lastname": "Last Name (required)", 
                 "address": "Address (required)",
                 "details": "Optional additional details"
             }
@@ -161,19 +161,19 @@ def add_client():
     
     data = request.json #to avoid redundancy in calling mysql
 
-    fname = data.get("fname")
-    lname = data.get("lname")
+    firstname = data.get("firstname")
+    lastname = data.get("lastname")
     address = data.get("address")
     other_details = data.get("details")
 
-    if not fname or not lname or not address:
+    if not firstname or not lastname or not address:
         return make_response(jsonify({"message":"Required fields not filled"}), 400)
     
     try:
         execute_query(
             """INSERT INTO client (firstname, lastname, address, other_details) 
             VALUES (%s, %s, %s, %s)""",
-            (fname, lname, address, other_details)
+            (firstname, lastname, address, other_details)
         )
         print("row(s) affected:")
         return jsonify({"message": "Client added successfully"}), 201
@@ -184,12 +184,12 @@ def add_client():
 @app.route('/client/edit/<id>', methods=["PUT"])
 def edit_client(id):
     data = request.json
-    fname = data.get("fname", None)
-    lname = data.get("lname", None)
+    firstname = data.get("firstname", None)
+    lastname = data.get("lastname", None)
     address = data.get("address", None)
     other_details = data.get("details", None)
 
-    if not fname or not lname or not address:
+    if not firstname or not lastname or not address:
         return jsonify({"message": "Required fields not filled"}), 400
 
     execute_query(
@@ -198,7 +198,7 @@ def edit_client(id):
         SET firstname = %s, lastname = %s, address = %s, other_details = %s
         WHERE client_id = %s
         """,
-        (fname, lname, address, other_details, id)
+        (firstname, lastname, address, other_details, id)
     )
 
     return jsonify({"message": "Client updated successfully"}), 200
@@ -295,7 +295,7 @@ def delete_item(item_code):
 
 #------STAFF CRUD ---------------
 # Get all staff members
-@app.route('/stafflist', methods=['GET'])
+@app.route('/staff', methods=['GET'])
 def get_staff():
     try:
         rows = fetch_all("SELECT * FROM staff_member")
@@ -313,29 +313,29 @@ def get_staff():
         return jsonify({"message": f"Error: {str(e)}"}), 500
 
 # Add a new staff member
-@app.route('/staff', methods=["POST"])
+@app.route('/staff/add', methods=["POST"])
 def add_staff():
     data = request.json
-    staff_code = data.get("staff_code", None)
+
     first_name = data.get("first_name", None)
     last_name = data.get("last_name", None)
     other_details = data.get("other_details", None)
 
-    if not staff_code or not first_name or not last_name:
+    if not first_name or not last_name:
         return jsonify({"message": "Required fields not filled"}), 400
 
     execute_query(
         """
-        INSERT INTO staff_members (staffcode, firstname, lastname, other_details)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO staff_member (firstname, lastname, other_details)
+        VALUES (%s, %s, %s)
         """,
-        (staff_code, first_name, last_name, other_details)
+        ( first_name, last_name, other_details)
     )
     return jsonify({"message": "Staff member added successfully"}), 201
 
 
 # Edit a staff member
-@app.route('/edit_staff/<string:staff_code>', methods=["PUT"])
+@app.route('/staff/edit/<staff_code>', methods=["PUT"])
 def edit_staff(staff_code):
     data = request.json
     first_name = data.get("first_name", None)
@@ -357,7 +357,7 @@ def edit_staff(staff_code):
 
 
 # Delete a staff member
-@app.route('/delete_staff/<string:staff_code>', methods=["DELETE"])
+@app.route('/staff/delete/<staff_code>', methods=["DELETE"])
 def delete_staff(staff_code):
     cursor = mysql.connection.cursor()
     cursor.execute("DELETE FROM staff_members WHERE staffcode = %s", (staff_code,))
@@ -391,7 +391,7 @@ def get_purchases():
 
 
 # Add a new purchase
-@app.route('/add_purchase', methods=["POST"])
+@app.route('/purchase/add', methods=["POST"])
 def add_purchase():
     data = request.json
     date_of_purchase = data.get("date_of_purchase", None)
@@ -415,7 +415,7 @@ def add_purchase():
 
 
 # Edit a purchase record
-@app.route('/edit_purchase/<int:purchase_id>', methods=["PUT"])
+@app.route('/purchase/edit/<purchase_id>', methods=["PUT"])
 def edit_purchase(purchase_id):
     data = request.json
     date_of_purchase = data.get("date_of_purchase", None)
@@ -446,7 +446,7 @@ def edit_purchase(purchase_id):
 
 
 # Delete a purchase record
-@app.route('/delete_purchase/<int:purchase_id>', methods=["DELETE"])
+@app.route('/purchase/delete/<purchase_id>', methods=["DELETE"])
 def delete_purchase(purchase_id):
     execute_query("DELETE FROM purchase WHERE purchase_id = %s", (purchase_id,))
     return jsonify({"message": "Purchase record deleted successfully"}), 200
