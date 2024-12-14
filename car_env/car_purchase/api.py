@@ -78,6 +78,26 @@ def expired_token_callback(jwt_header, jwt_payload):
         401,
     )
 
+@jwt_required()
+def restricted_route():
+    claims = get_jwt()
+    if claims.get('role') != 'admin':
+        return jsonify({"message": "Admins only!"}), 403
+    
+
+#-------Check Connection -----
+def check_connection():
+    """Check if MySQL connection is active."""
+    try:
+        conn = mysql.connection
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        print("Database connection is active.")
+    except Exception as e:
+        print(f"Error connecting to database: {e}")
+
+check_connection()
 #-----UTILITY FUNCTIONS----------
 
 def fetch_all(query, params=()):
@@ -95,13 +115,21 @@ def execute_query(query, params=()):
     mysql.connection.commit()
     cursor.close()
 
+def validate_request(data, required_fields):
+    for field, field_type in required_fields.items():
+        if field not in data:
+            return False, f"{field} is required."
+        if not isinstance(data[field], field_type):
+            return False, f"{field} must be of type {field_type.__name__}."
+    return True, None
+
 #-------ROUTES------------
 #get all info
 @app.route("/")
 def home():
     return make_response(
         jsonify(
-            {"message":"Cars Available on Purchase "}
+            {"message":"Cars Available on Purchase"}
             ), 200
     )
 
@@ -113,7 +141,7 @@ def get_clients():
     return jsonify(clients)
 
 #add new client
-@app.route('/client', methods=["post"])
+@app.route('/add_client', methods=["post"])
 def add_client():
     data = request.json #to avoid redundancy in calling mysql
     fname = data.get("fname")
@@ -124,11 +152,14 @@ def add_client():
     if not fname or not lname or not address:
         return make_response(jsonify({"message":"Required fields not filled"}), 400)
     
-    execute_query(
-        "INSERT INTO client (firstname, lastname, address, other_details) VALUES (%s, %s, %s, %s)",
-        (fname, lname, address, other_details)
-    )
-    return jsonify({"message": "Client added successfully"}), 201
+    try:
+        execute_query(
+            "INSERT INTO client (firstname, lastname, address, other_details) VALUES (%s, %s, %s, %s)",
+            (fname, lname, address, other_details)
+        )
+        return jsonify({"message": "Client added successfully"}), 201
+    except Exception as e:
+        return jsonify({"message": "Error occurred while adding client"}), 500
 
 @app.route('/edit_client/<int:id>', methods=["PUT"])
 def edit_client(id):
@@ -234,21 +265,22 @@ def delete_item(item_code):
 
 #------STAFF CRUD ---------------
 # Get all staff members
-@app.route('/staff', methods=['GET'])
+@app.route('/stafflist', methods=['GET'])
 def get_staff():
-    rows = fetch_all("SELECT * FROM staff_members")
-
-    staff = [
-        {
-            "Staff Code": row[0],
-            "First Name": row[1],
-            "Last Name": row[2],
-            "Other Details": row[3],
-        }
-        for row in rows
-    ]
-    return jsonify(staff), 200
-
+    try:
+        rows = fetch_all("SELECT * FROM staff_memberss")
+        staff = [
+            {
+                "Staff Code": row[0],
+                "First Name": row[1],
+                "Last Name": row[2],
+                "Other Details": row[3],
+            }
+            for row in rows
+        ]
+        return jsonify(staff), 200
+    except Exception as e:
+        return jsonify({"message": f"Error: {str(e)}"}), 500
 
 # Add a new staff member
 @app.route('/staff', methods=["POST"])
@@ -302,6 +334,101 @@ def delete_staff(staff_code):
     mysql.connection.commit()
     cursor.close()
     return jsonify({"message": "Staff member deleted successfully"}), 200
+
+# CRUD for PURCHASE TABLE
+
+# Get all purchases
+@app.route('/purchases', methods=['GET'])
+def get_purchases():
+    rows = fetch_all(
+        """
+        SELECT 
+            purchase_id, 
+            date_of_purchase, 
+            purchase_quantity, 
+            staff_member_staff_code, 
+            Client_client_id, 
+            item_status_item_code, 
+            other_details 
+        FROM purchase
+        """
+    )
+    purchases = [
+        {
+            "Purchase ID": row[0],
+            "Date of Purchase": row[1],
+            "Purchase Quantity": row[2],
+            "Staff Code": row[3],
+            "Client ID": row[4],
+            "Item Code": row[5],
+            "Other Details": row[6],
+        }
+        for row in rows
+    ]
+    return jsonify(purchases), 200
+
+
+# Add a new purchase
+@app.route('/purchase', methods=["POST"])
+def add_purchase():
+    data = request.json
+    date_of_purchase = data.get("date_of_purchase", None)
+    purchase_quantity = data.get("purchase_quantity", None)
+    staff_code = data.get("staff_member_staff_code", None)
+    client_id = data.get("Client_client_id", None)
+    item_code = data.get("item_status_item_code", None)
+    other_details = data.get("other_details", None)
+
+    if not date_of_purchase or not purchase_quantity or not staff_code or not client_id or not item_code:
+        return jsonify({"message": "Required fields not filled"}), 400
+
+    execute_query(
+        """
+        INSERT INTO purchase (date_of_purchase, purchase_quantity, staff_member_staff_code, Client_client_id, item_status_item_code, other_details)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+        (date_of_purchase, purchase_quantity, staff_code, client_id, item_code, other_details)
+    )
+    return jsonify({"message": "Purchase record added successfully"}), 201
+
+
+# Edit a purchase record
+@app.route('/edit_purchase/<int:purchase_id>', methods=["PUT"])
+def edit_purchase(purchase_id):
+    data = request.json
+    date_of_purchase = data.get("date_of_purchase", None)
+    purchase_quantity = data.get("purchase_quantity", None)
+    staff_code = data.get("staff_member_staff_code", None)
+    client_id = data.get("Client_client_id", None)
+    item_code = data.get("item_status_item_code", None)
+    other_details = data.get("other_details", None)
+
+    if not date_of_purchase or not purchase_quantity or not staff_code or not client_id or not item_code:
+        return jsonify({"message": "Required fields not filled"}), 400
+
+    execute_query(
+        """
+        UPDATE purchase
+        SET 
+            date_of_purchase = %s, 
+            purchase_quantity = %s, 
+            staff_member_staff_code = %s, 
+            Client_client_id = %s, 
+            item_status_item_code = %s, 
+            other_details = %s
+        WHERE purchase_id = %s
+        """,
+        (date_of_purchase, purchase_quantity, staff_code, client_id, item_code, other_details, purchase_id)
+    )
+    return jsonify({"message": "Purchase record updated successfully"}), 200
+
+
+# Delete a purchase record
+@app.route('/delete_purchase/<int:purchase_id>', methods=["DELETE"])
+def delete_purchase(purchase_id):
+    execute_query("DELETE FROM purchase WHERE purchase_id = %s", (purchase_id,))
+    return jsonify({"message": "Purchase record deleted successfully"}), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True)
