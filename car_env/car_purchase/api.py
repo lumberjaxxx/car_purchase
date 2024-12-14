@@ -11,6 +11,7 @@ from flask_jwt_extended.exceptions import (
     UserLookupError,
     UserClaimsVerificationError
 )
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -218,9 +219,9 @@ def get_items():
     items = [
         {
             "Item Code": row[0],
-            "Item Name": row[1],
-            "Quantity Available": row[2],
-            "Other Details": row[3],
+            "tiem_name": row[1],
+            "quantity_available": row[2],
+            "other_details": row[3],
         }
         for row in rows
     ]
@@ -251,7 +252,7 @@ def add_item():
         INSERT INTO item_status (item_name, item_quantity_available, other_item_details)
             VALUES (%s, %s, %s)
         """,
-            ( item_name, quantity_available, other_details),
+            (item_name, quantity_available, other_details),
         )
         print("row(s) affected:")
         return jsonify({"message": "Client added successfully"}), 201
@@ -302,9 +303,9 @@ def get_staff():
         staff = [
             {
                 "Staff Code": row[0],
-                "First Name": row[1],
-                "Last Name": row[2],
-                "Other Details": row[3],
+                "first_name": row[1],
+                "last_name": row[2],
+                "other_details": row[3],
             }
             for row in rows
         ]
@@ -329,7 +330,7 @@ def add_staff():
         INSERT INTO staff_member (firstname, lastname, other_details)
         VALUES (%s, %s, %s)
         """,
-        ( first_name, last_name, other_details)
+        (first_name, last_name, other_details)
     )
     return jsonify({"message": "Staff member added successfully"}), 201
 
@@ -347,9 +348,9 @@ def edit_staff(staff_code):
 
     execute_query(
         """
-        UPDATE staff_members
+        UPDATE staff_member
         SET firstname = %s, lastname = %s, other_details = %s
-        WHERE staffcode = %s
+        WHERE staff_code = %s
         """,
         (first_name, last_name, other_details, staff_code)
     )
@@ -360,7 +361,7 @@ def edit_staff(staff_code):
 @app.route('/staff/delete/<staff_code>', methods=["DELETE"])
 def delete_staff(staff_code):
     cursor = mysql.connection.cursor()
-    cursor.execute("DELETE FROM staff_members WHERE staffcode = %s", (staff_code,))
+    cursor.execute("DELETE FROM staff_member WHERE staff_code = %s", (staff_code,))
     mysql.connection.commit()
     cursor.close()
     return jsonify({"message": "Staff member deleted successfully"}), 200
@@ -378,12 +379,12 @@ def get_purchases():
     purchases = [
         {
             "Purchase ID": row[0],
-            "Date of Purchase": row[1],
-            "Purchase Quantity": row[2],
-            "Staff Code": row[3],
-            "Client ID": row[4],
-            "Item Code": row[5],
-            "Other Details": row[6],
+            "date_of_purchase": row[1],
+            "purchase_quantity": row[2],
+            "staff_code": row[3],
+            "client_id": row[4],
+            "item_code": row[5],
+            "other_details": row[6],
         }
         for row in rows
     ]
@@ -396,23 +397,47 @@ def add_purchase():
     data = request.json
     date_of_purchase = data.get("date_of_purchase", None)
     purchase_quantity = data.get("purchase_quantity", None)
-    staff_code = data.get("staff_member_staff_code", None)
-    client_id = data.get("Client_client_id", None)
-    item_code = data.get("item_status_item_code", None)
+    staff_code = data.get("staff_code", None)
+    client_id = data.get("client_id", None)
+    item_code = data.get("item_code", None)
     other_details = data.get("other_details", None)
 
-    if not date_of_purchase or not purchase_quantity or not staff_code or not client_id or not item_code:
+    missing_fields = []
+    if not date_of_purchase:
+        missing_fields.append("date_of_purchase")
+    if not purchase_quantity:
+        missing_fields.append("purchase_quantity")
+    if not staff_code:
+        missing_fields.append("staff_code")
+    if not client_id:
+        missing_fields.append("client_id")
+    if not item_code:
+        missing_fields.append("item_code")
+    
+    if missing_fields:
+        print(f"Error: Missing required fields: {', '.join(missing_fields)}")
         return jsonify({"message": "Required fields not filled"}), 400
+    ##for the date parsing 
+    try:
+        date_of_purchase = datetime.strptime(date_of_purchase, "%a, %d %b %Y %H:%M:%S GMT").strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError as ve:
+        print(f"Date Parsing Error: {str(ve)}")
+        return jsonify({"message": "Invalid date format. Expected 'Fri, 30 Aug 2024 00:00:00 GMT'"}), 400
 
-    execute_query(
-        """
-        INSERT INTO purchase (date_of_purchase, purchase_quantity, staff_member_staff_code, Client_client_id, item_status_item_code, other_details)
-        VALUES (%s, %s, %s, %s, %s, %s)
+    
+    try:
+        execute_query(
+            """
+            INSERT INTO purchase (date_of_purchase, purchase_quatity, staff_member_staff_code, Client_client_id, item_status_item_code, other_details)
+            VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (date_of_purchase, purchase_quantity, staff_code, client_id, item_code, other_details)
-    )
-    return jsonify({"message": "Purchase record added successfully"}), 201
-
+            (date_of_purchase, purchase_quantity, staff_code, client_id, item_code, other_details)
+        )
+        return jsonify({"message": "Purchase record added successfully"}), 201
+    
+    except Exception as e:
+        print(f"Database Error: {str(e)}")
+        return jsonify({"message": "Error occurred while adding purchase record"}), 500
 
 # Edit a purchase record
 @app.route('/purchase/edit/<purchase_id>', methods=["PUT"])
@@ -420,20 +445,28 @@ def edit_purchase(purchase_id):
     data = request.json
     date_of_purchase = data.get("date_of_purchase", None)
     purchase_quantity = data.get("purchase_quantity", None)
-    staff_code = data.get("staff_member_staff_code", None)
-    client_id = data.get("Client_client_id", None)
-    item_code = data.get("item_status_item_code", None)
+    staff_code = data.get("staff_code", None)
+    client_id = data.get("client_id", None)
+    item_code = data.get("item_code", None)
     other_details = data.get("other_details", None)
 
     if not date_of_purchase or not purchase_quantity or not staff_code or not client_id or not item_code:
         return jsonify({"message": "Required fields not filled"}), 400
 
-    execute_query(
+    try:
+        date_of_purchase = datetime.strptime(date_of_purchase, "%a, %d %b %Y %H:%M:%S GMT").strftime("%Y-%m-%d %H:%M:%S")
+    except ValueError as ve:
+        print(f"Date Parsing Error: {str(ve)}")
+        return jsonify({"message": "Invalid date format. Expected 'Fri, 30 Aug 2024 00:00:00 GMT'"}), 400
+
+    
+    try:
+        execute_query(
         """
         UPDATE purchase
         SET 
             date_of_purchase = %s, 
-            purchase_quantity = %s, 
+            purchase_quatity = %s, 
             staff_member_staff_code = %s, 
             Client_client_id = %s, 
             item_status_item_code = %s, 
@@ -442,7 +475,11 @@ def edit_purchase(purchase_id):
         """,
         (date_of_purchase, purchase_quantity, staff_code, client_id, item_code, other_details, purchase_id)
     )
-    return jsonify({"message": "Purchase record updated successfully"}), 200
+        return jsonify({"message": "Purchase record updated successfully"}), 200
+
+    except Exception as e:
+        print(f"Database Error: {str(e)}")
+        return jsonify({"message": "Error occurred while adding purchase record"}), 500
 
 
 # Delete a purchase record
