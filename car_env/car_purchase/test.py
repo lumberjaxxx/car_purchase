@@ -81,7 +81,7 @@ class APITests(unittest.TestCase):
 
 
 
-#---------------purchase---------------
+# #---------------purchase---------------
 # Test Adding a Purchase
     def test_add_purchase(self):
         payload = {
@@ -109,7 +109,8 @@ class APITests(unittest.TestCase):
         }
         response = self.app.post("/purchase/add", json=payload)
         self.assertEqual(response.status_code, 400)
-        self.assertIn('{"Invalid date format"', response.data.decode())
+        response_json = response.get_json()
+        self.assertEqual(response_json["message"], "Invalid date format. Expected 'Fri, 30 Aug 2024 00:00:00 GMT'")
 
 #  Test Retrieving Purchases
     def test_get_purchases(self):
@@ -118,6 +119,7 @@ class APITests(unittest.TestCase):
         self.assertIsInstance(response.get_json(), list) 
         self.assertTrue(any("Purchase ID" in purchase for purchase in response.get_json()))
 
+#---------------STAFF------------------------------
     
     def test_get_staff(self):
         response = self.app.get("/staff")
@@ -125,6 +127,61 @@ class APITests(unittest.TestCase):
         self.assertIsInstance(response.get_json(), list) 
         self.assertTrue(any("Staff Code" in staff_member for staff_member in response.get_json()))
 
+# Test Adding a Staff Member
+    def test_add_staff(self):
+        payload = {
+            "first_name": "Alice",
+            "last_name": "Johnson",
+        }
+        response = self.app.post("/staff/add", json=payload)
+        self.assertEqual(response.status_code, 201)
+        print(response.data.decode())
+        response_json = response.get_json()
+        self.assertIn(response_json["message"],"Staff member added successfully", response.data.decode())
+
+# Test Adding a Staff Member with Missing Fields
+    def test_add_staff_missing_fields(self):
+        payload = {
+            "Staff Code":13,
+            "firstname": "Alice",
+            "lastname": "Johnson"
+        }
+        response = self.app.post("/staff/add", json=payload)
+        self.assertEqual(response.status_code, 400)
+        response_json = response.get_json()
+        self.assertIn(response_json["message"],"Required fields not filled", response.data.decode())
+
+# Test Retrieving All Staff
+    def test_get_all_staff(self):
+        response = self.app.get("/staff")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.get_json(), list)
+        self.assertTrue(any("Staff Code" in staff for staff in response.get_json()))
+
+# Test Retrieving a Single Staff Member
+    def test_get_staff_by_id(self):
+        response = self.app.get("/staff")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue("Alice" in response.data.decode())
+
+# # Test Updating a Staff Member
+    def test_update_staff(self):
+        payload = {
+            "first_name": "Alice Updated",
+            "last_name": "Johnson",
+        }
+        response = self.app.put("/staff/edit/20", json=payload)
+        print(f"Payload received: {response.json}")
+        self.assertEqual(response.status_code, 200)
+        response_json = response.get_json()
+        self.assertIn(response_json["message"],"Staff member updated successfully", response.data.decode())
+
+# Test Deleting a Staff Member
+    def test_delete_staff(self):
+        response = self.app.delete("/staff/delete/26")
+        self.assertEqual(response.status_code, 200)
+        response_json = response.get_json()
+        self.assertIn(response_json["message"],"Staff member deleted successfully", response.data.decode())
 
 
 
@@ -134,6 +191,58 @@ class APITests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIsInstance(response.get_json(), list) 
         self.assertTrue(any("Item Code" in item_status for item_status in response.get_json()))
+
+# Test Adding an Item
+    def test_add_item(self):
+        payload = {
+            "item_code": 101,
+            "item_name": "Brake Pad",
+            "item_description": "High-performance brake pad",
+            "quantity_available": 500
+        }
+        response = self.app.post("/item/add", json=payload)
+        self.assertEqual(response.status_code, 201)
+        response_json = response.get_json()
+        self.assertIn(response_json["message"],"Item added successfully", response.data.decode())
+
+# Test Adding an Item with Missing Fields
+    def test_add_item_missing_fields(self):
+        payload = {
+            "item_code": 101,
+            "item_name": "Brake Pad"
+        }
+        response = self.app.post("/item/add", json=payload)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Required fields not filled", response.data.decode())
+
+# Test Retrieving All Items
+    def test_get_items(self):
+        response = self.app.get("/item")
+        self.assertEqual(response.status_code, 200)
+        self.assertIsInstance(response.get_json(), list)
+        self.assertTrue(any("Item Code" in item for item in response.get_json()))
+
+# Test Updating an Item
+    def test_update_item(self):
+        payload = {
+            "item_name": "Brake Pad Updated",
+            "item_description": "Updated description",
+            "quantity_available": 450
+        }
+        response = self.app.put("/item/edit/20", json=payload)
+        self.assertEqual(response.status_code, 200)
+        response_json = response.get_json()
+        self.assertIn(response_json["message"],"Item updated successfully", response.data.decode())
+
+# Test Deleting an Item
+    def test_delete_item(self):
+        response = self.app.delete("/item/delete/101")
+        self.assertEqual(response.status_code, 200)
+        response_json = response.get_json()
+        self.assertIn(response_json["message"],"Item deleted successfully", response.data.decode())
+
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -255,7 +255,7 @@ def add_item():
             (item_name, quantity_available, other_details),
         )
         print("row(s) affected:")
-        return jsonify({"message": "Client added successfully"}), 201
+        return jsonify({"message": "Item added successfully"}), 201
     except Exception as e:
         print(f"Error adding client: {str(e)}")
         return jsonify({"message": "Error occurred while adding client"}), 500
