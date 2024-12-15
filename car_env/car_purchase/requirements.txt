@@ -1,4 +1,3 @@
-MySQL Server
 Flask
 Flask-JWT-Extended
 Flask-MySQLdb
