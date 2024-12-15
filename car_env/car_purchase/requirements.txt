@@ -1,0 +1,6 @@
+MySQL Server
+Flask
+Flask-JWT-Extended
+Flask-MySQLdb
+Pytest
+Pytest-cov
