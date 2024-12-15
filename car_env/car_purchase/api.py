@@ -136,7 +136,7 @@ def home():
     )
 
 #CLIENT CRUD
-@app.route('/clients', methods=['GET'])
+@app.route('/client', methods=['GET'])
 def get_clients():
     rows = fetch_all("SELECT * FROM client")
     clients = [{"Client ID": row[0], "firstname": row[1], "lastname": row[2], "Address": row[3], "other_details": row[4]} for row in rows]
