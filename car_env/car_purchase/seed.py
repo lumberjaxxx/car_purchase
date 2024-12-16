@@ -56,9 +56,9 @@ def add_fake_data():
     for _ in range(25):
         date = faker.date_this_year()
         quantity = faker.random_int(min=1, max=50)
-        staffcode = faker.random_int(min=1, max=25)
+        staffcode = faker.random_int(min=1, max=50)
         clientid = faker.random_int(min=1, max=50)
-        itemcode = faker.random_int(min=1, max=25)
+        itemcode = faker.random_int(min=1, max=50)
         details = faker.text(max_nb_chars=45)
         execute_query("INSERT INTO purchase (date_of_purchase, purchase_quatity, Staff_Member_staff_code, Client_client_id, Item_status_item_code, other_details) VALUES (%s, %s, %s, %s, %s, %s)", (date, quantity,staffcode, clientid, itemcode, details))
 
