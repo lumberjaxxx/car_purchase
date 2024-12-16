@@ -22,7 +22,7 @@ class APITests(unittest.TestCase):
     def test_get_client(self):
         response = self.app.get("/client")
         self.assertEqual(response.status_code, 200)
-        self.assertTrue("Rex" in response.data.decode())
+        self.assertTrue("Samantha" in response.data.decode())
 
 #Test Adding a Client
     def test_add_client(self):
